@@ -1,26 +1,47 @@
 ---
 title: "11-IDworkshop-tidytext"
 author: "Cots_Ruzelyte"
-date: "2022-11-07"
-output: html_document
+date: "`r format(Sys.time(), '%B %d, %Y | %H:%M:%S | %Z')`"
+output:
+  html_document:
+    code_folding: show
+    df_print: paged
+    highlight: tango
+    number_sections: no
+    theme: cosmo
+    toc: no
 ---
+  
+<style>
+div.answer {background-color:#f3f0ff; border-radius: 5px; padding: 20px;}
+</style>
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      eval = TRUE,
+                      error = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      comment = NA)
 ```
 
-#Load packages
 ```{r, include = T}
 library(rvest)
 library(stringr)
 library(tidyverse)
 library(tidytext)
+library(wordcloud2)
 ```
+<br>
 
 
-## XXXXXXX
+#### 👩💻 DATA PREPARATION
 
-xxxxxxxxx
+We first need to load the data, which, in this case, consists of the two speeches: 
+
+- President Obama's Inaugural Address; 20th January 2009. 
+
+- President Trump's Inaugural Address; 20th January 2017. 
 
 ```{r}
 ##We introduce the speeches as text to create the strings
@@ -134,8 +155,7 @@ trump_speech_df <- tibble(Text=trump_speech)
 
 ```
 
-###### WE TIDY THE DATA
-
+#### 🧹🧼 STEP 1. Clean the data (tidy data).
 
 ````{r}
 
@@ -161,12 +181,12 @@ together_clean <- together_words %>%
   anti_join(stop_words)
 
 
-`````
+````
 
-# ANALYSIS
+#### 🗯📣 STEP 2. Word analysis.
 
 ````{r}
-#We want to know the 6-most-common used words by each of the presidents in their inauguration speeches
+#We want to know the 8-most-common used words by each of the presidents in their inauguration speeches
 together_clean %>% 
   group_by(president) %>% 
   count(word) %>% 
@@ -185,7 +205,6 @@ comparison <- together_clean %>%
     names_prefix = "president_", 
     values_fill = 0
   )
-comparison
 
 #Ratios
 comparison %>% 
@@ -195,11 +214,13 @@ comparison %>%
   )
 
 
-`````
+````
+
 
 
 ````{r}
-#Count the number of times they say "I"
+#Usage of word "I"
+
 times_I <- together_words %>% #use initial dataframe with stopwords (bc I is considered a stopword)
   group_by(president) %>% 
   count(word == "i") %>% 
@@ -211,8 +232,7 @@ times_I <- together_words %>% #use initial dataframe with stopwords (bc I is con
     names_prefix = "president_", 
   ) 
 
-
-#Share of times they say "we"
+#Usage of word "we"
 times_we <- together_words %>% #use initial dataframe with stopwords (bc I is considered a stopword)
   group_by(president) %>% 
   count(word == "we") %>% 
@@ -224,7 +244,7 @@ times_we <- together_words %>% #use initial dataframe with stopwords (bc I is co
     names_prefix = "president_", 
   ) 
 
-
+#COMPARE BOTH WORDS TOGETHER IN ONE DATAFRAME
 I_we_comparison <- bind_rows(times_I, times_we)
 
 I_we_share <- I_we_comparison %>% 
@@ -240,11 +260,12 @@ I_we_share %>%
   bind_cols(word_type)
 
 
-`````
+````
 
+#### 😍/😢 STEP 3. Sentiment analysis.
 
 ````{r}
-#SENTIMENT ANALYSIS
+#Analysis of the general sentiment of the speeches
 
 sentiments <- get_sentiments("bing") #we load the bing-sentiments lexicon
 
@@ -265,16 +286,32 @@ sentiments_analysis %>%
   )
 
 
-`````
+````
 
 
-## PLOTS
+#### 📊 STEP 4. Plot the results. 
 
-XXXXXXX
+Let's do it cooler. We now want to plot most-used words in wordclouds. 
 
 ```{r pressure, echo=FALSE}
 
-#XXXXX
+obama_wordcloud <- together_clean %>% 
+  filter(president=="obama") %>% 
+  count(word, sort=T) %>% 
+  head(50) %>% 
+  wordcloud2(size= .4,
+            color = c("darkblue", "red", "darkgreen"))
+obama_wordcloud
+
+
+trump_wordcloud <- together_clean %>% 
+  filter(president=="trump") %>% 
+  count(word, sort=T) %>% 
+  head(50) %>% 
+  wordcloud2(size= .4,
+            color = c("darkblue", "red", "darkgreen"))
+trump_wordcloud
+
 
 ```
 
