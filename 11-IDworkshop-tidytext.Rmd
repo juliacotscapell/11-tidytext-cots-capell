@@ -134,30 +134,141 @@ trump_speech_df <- tibble(Text=trump_speech)
 
 ```
 
-````{r}
-##We create new dataframes in which each line is a word
+###### WE TIDY THE DATA
 
+
+````{r}
+
+##We create new dataframes in which each line is a word
 obama_words <- obama_speech_df %>% 
   unnest_tokens(output=word, input=Text)
 
 trump_words <- trump_speech_df %>% 
   unnest_tokens(output=word, input=Text)
 
+#We add a new column in each called president to be able to group words by this category later. 
+obama_words <- obama_words %>% 
+  mutate(president = "obama")
 
-#We remove stop_words in English and we want to know the most used words in all speeches
-obama_words %>% 
-  anti_join(stop_words) %>% 
-  count(word, sort=T)
+trump_words <- trump_words %>% 
+  mutate(president = "trump")
 
-trump_words %>% 
-  anti_join(stop_words) %>% 
-  count(word, sort=T)
+#We merge them to be able to work with one single dataframe
+together_words <- bind_rows(obama_words, trump_words)
+
+#Remove stopwords
+together_clean <- together_words %>% 
+  anti_join(stop_words)
+
+
+`````
+
+# ANALYSIS
+
+````{r}
+#We want to know the 6-most-common used words by each of the presidents in their inauguration speeches
+together_clean %>% 
+  group_by(president) %>% 
+  count(word) %>% 
+  top_n(8)
+
+
+#We create a table that allows us to see the number of times each word is said by president (in the same line)
+comparison <- together_clean %>% 
+  count(word, president) %>% 
+  group_by(word) %>% 
+  filter(n >=4) %>%  #we saw that the top 10 most-used words they were used at least 4 times
+  ungroup(word) %>% 
+  pivot_wider(
+    names_from = president, 
+    values_from = n, 
+    names_prefix = "president_", 
+    values_fill = 0
+  )
+comparison
+
+#Ratios
+comparison %>% 
+  mutate(
+    obama_ratio = round(100*((president_obama) / (sum(president_obama))),2),
+    trump_ratio = round(100*((president_trump) / (sum(president_trump))),2)
+  )
+
 
 `````
 
 
+````{r}
+#Count the number of times they say "I"
+times_I <- together_words %>% #use initial dataframe with stopwords (bc I is considered a stopword)
+  group_by(president) %>% 
+  count(word == "i") %>% 
+  mutate(share_I = 100*(n/sum(n))) %>%  #figure out how to round this
+  select(!n) %>% 
+  pivot_wider(
+    names_from = president, 
+    values_from = share_I, 
+    names_prefix = "president_", 
+  ) 
 
-## XXXXXXX
+
+#Share of times they say "we"
+times_we <- together_words %>% #use initial dataframe with stopwords (bc I is considered a stopword)
+  group_by(president) %>% 
+  count(word == "we") %>% 
+  mutate(share_we = 100*(n/sum(n))) %>%  #figure out how to round this
+  select(!n) %>% 
+  pivot_wider(
+    names_from = president, 
+    values_from = share_we, 
+    names_prefix = "president_", 
+  ) 
+
+
+I_we_comparison <- bind_rows(times_I, times_we)
+
+I_we_share <- I_we_comparison %>% 
+  select(president_obama, president_trump) %>% 
+  mutate(across(1:2, round,3))
+
+I_we_share <- I_we_share[c(2,4),]
+
+#We add a column to know what word it is
+personal_word <- c("I", "we")
+word_type <- data.frame(personal_word)
+I_we_share %>% 
+  bind_cols(word_type)
+
+
+`````
+
+
+````{r}
+#SENTIMENT ANALYSIS
+
+sentiments <- get_sentiments("bing") #we load the bing-sentiments lexicon
+
+word_sentiments <- inner_join(together_words, sentiments) #we merge the sentiment column to add a validation of the sentiment behind each word
+
+#we calculate the share of positive / negative words used by each president in all the speech
+sentiments_analysis <- word_sentiments %>% 
+  group_by(president) %>% 
+  count(president, sentiment) %>% 
+  mutate(share = round(n/sum(n),2))
+
+
+sentiments_analysis %>%
+  select(!n) %>% 
+  pivot_wider(
+    names_from = sentiment,
+    values_from = share
+  )
+
+
+`````
+
+
+## PLOTS
 
 XXXXXXX
 
