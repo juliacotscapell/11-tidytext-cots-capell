@@ -10,6 +10,7 @@ output:
     number_sections: no
     theme: cosmo
     toc: no
+    keep_md: true
 ---
   
 <style>
@@ -31,13 +32,16 @@ library(stringr)
 library(tidyverse)
 library(tidytext)
 library(wordcloud2)
+library(ggplot2)
 ```
 
 <br>
 
-#### 👋 **WELCOME TO THE WORKSHOP #11 ON THE PACKAGE TIDYTEXT**
+#### 👋 **WELCOME TO WORKSHOP #11 ON THE PACKAGE TIDYTEXT**
 
-For this purpose, we're going to , consists of the two speeches: 
+In this workshop we're going to discover the utilities of the R package "tidytext", created by Julia Silge and David Robinson. 
+
+For the purpose of having a practical understanding of the package, we're going to use two of the most famous political speeches of the XXI century in the United States: 
 
 - President Obama's Inaugural Address; 20th January 2009. 
 
@@ -48,7 +52,7 @@ For this purpose, we're going to , consists of the two speeches:
 
 #### 👩💻 **STEP 0. Data scraping and preparation.**
 
-In order to obtain the inauguration speeches that we're interested in analysing, we scraped the websites with the transcripsts of the speeches. For the purpose of this workshop, and in the interest of time, we provide you with the code to obtain the text. Each president's speech is stored in a string named "*_text". 
+In order to obtain the inauguration speeches that we're interested in analysing, we first need to scrape the websites with the transcripts of the speeches. For the purpose of this workshop, and in the interest of time, we provide you with the code to obtain the text. Each president's speech is stored in a string named "*_text". 
 
 ```{r}
 #OBAMA
@@ -66,21 +70,23 @@ trump_text <- trump_text[c(2:14)]
 We will now convert the strings into dataframes for better manipulation in the future steps and in order to be able to apply the tidytext package functions which require a tidy-data structure.
 
 ``` {r}
-obama_speech_df <- tibble(Text=obama_text)
-trump_speech_df <- tibble(Text=trump_text)
+obama_speech_df <- tibble(Text=obama_text) #here we obtain a 1x1 dataframe, given that the text is stored in 1 single character block
+trump_speech_df <- tibble(Text=trump_text) #here we obtain a 13x1 dataframe, given that the text is stored in 13 paragraphs
 
 ```
 
-We can see that each speech is stored as rows of the dataframe, with the whole text stored in **one column**. However, because of the formatting of every website from which we obtained the transcript, Obama's speech is stored as one single row, whereas Trump's speech is split in paragraphs. Nevertheless, our future analysis won't be affected by this circumstance, given that our unit of interest will be words. 
+We can see that each speech is stored as rows of the dataframe, with the whole text stored in **one column**. However, because of the formatting of every website from which we obtained the transcript, Obama's speech is stored as one single row, whereas Trump's speech is split in paragraphs. 
+
+Nevertheless, our future analysis won't be affected by this circumstance, given that our unit of interest will be the individual words of the speeches. 
 
 <br>
 
 #### 🧹🧼 **STEP 1. Clean the data (tidy data).**
 
-XXXXXXXX
+Once we have saved the text in the corresponding dataframes, we will start the actual work. The tidy text format is a table with one token per row. Tokens are the unit of text that we are interested in. In our case, our tokens are **words**. 
 
+**Task 1.** *Convert the dataframes into tidy text format, with words as tokens. Print the first 10 lines of each new dataframe to make sure that you're doing it alright.*    
 ````{r}
-
 ##We create new dataframes in which each line is a word
 obama_words <- obama_speech_df %>% 
   unnest_tokens(output=word, input=Text)
@@ -88,6 +94,14 @@ obama_words <- obama_speech_df %>%
 trump_words <- trump_speech_df %>% 
   unnest_tokens(output=word, input=Text)
 
+head(obama_words, 10)
+head(trump_words, 10)
+
+````
+<br>
+
+**Task 2.** *To be able to compare across speeches, we  want to have the two columns in a single dataframe. Construct a dataframe with all the words used in both speeches, with the corresponding indication of the president who said every word.*
+```{r}
 #We add a new column in each called president to be able to group words by this category later. 
 obama_words <- obama_words %>% 
   mutate(president = "obama")
@@ -98,30 +112,49 @@ trump_words <- trump_words %>%
 #We merge them to be able to work with one single dataframe
 together_words <- bind_rows(obama_words, trump_words)
 
-#Remove stopwords
-together_clean <- together_words %>% 
-  anti_join(stop_words)
+```
 
-
-````
 
 <br>
 
 #### 🗯📣 **STEP 2. Word analysis.**
 
+The tidytext package has some functionalities that are very useful to analyse the meaningful content of the text. 
+
+**Task 3.** *Create a new dataframe of the speeches excluding English stopwords.*
+
+```{r}
+#Remove stopwords
+together_clean <- together_words %>% 
+  anti_join(stop_words)
+
+```
+
+<br>
+
+Having text in tidy format also allows us to analyse which words are used most frequently in different texts and then compare them. In the following exercises we will practise this functionality. 
+
+**Task 4.** *Identify the 5 most common words (excluding stopwords) used by each president in their inauguration speeches.*
 ````{r}
-#We want to know the 8-most-common used words by each of the presidents in their inauguration speeches
 together_clean %>% 
   group_by(president) %>% 
   count(word) %>% 
-  top_n(8)
+  top_n(5) %>% 
+  pivot_wider(
+    names_from = president, 
+    values_from = n, 
+    names_prefix = "president_"
+  )
 
+````
+<br>
 
+**Task 5.** *Identify the words that at least one of the two presidents used more than 1% of the times.*
+```{r}
 #We create a table that allows us to see the number of times each word is said by president (in the same line)
 comparison <- together_clean %>% 
   count(word, president) %>% 
   group_by(word) %>% 
-  filter(n >=4) %>%  #we saw that the top 10 most-used words they were used at least 4 times
   ungroup(word) %>% 
   pivot_wider(
     names_from = president, 
@@ -130,17 +163,112 @@ comparison <- together_clean %>%
     values_fill = 0
   )
 
-#Ratios
+#we create the ratios (percentage of times the word was said over the total word-count). 
 comparison %>% 
   mutate(
     obama_ratio = round(100*((president_obama) / (sum(president_obama))),2),
     trump_ratio = round(100*((president_trump) / (sum(president_trump))),2)
-  )
+  ) %>% 
+  filter(obama_ratio >= 1 | trump_ratio >= 1) #filter words that at least were said at least 1% of times by any of them
 
+
+```
+
+<br/>
+
+#### 😍/😢 **STEP 3. Sentiment analysis.**
+
+The tidytext package also allows us to do opinion mining or sentiment analysis. Tidytext follows the same process that the human brain does: when we read a text, we use our understanding of the emotional direction or intent of the words to infer whether the paragraph, section, chapter or book is positive or negative. 
+
+Text mining tools will help us approach the emotional content of the two speeches, as shown in the image below: 
+
+```{r, fig.align='center', echo=F, out.width = "90%"}
+
+knitr::include_graphics("../flowchart-sentiment_analysis.png")
+```
+
+However, sentiments are subjective, and there is more than one methods and dictionary for evaluating the opinion or the emotions in the text. Tidytext provides access to several **sentiment lexicons**, such as the following: 
+
+- *AFINN*, from Finn Årup Nielsen.
+- *bing*, from Bing Liu and collaborators.
+- *nrc*, from Saif Mohammad and Peter Turney.
+
+The function **get_sentiments("name of the package")** allows us to get specific sentiment lexicons with the appropriate measures for each one. For this exercise we're going to use the *nrc* package. 
+
+<br>
+
+**Task 6.** *Analyse the general sentiment of the speeches. Which president used a higher share of negative words?*
+
+````{r}
+
+sentiments <- get_sentiments("bing") #we load the bing-sentiments lexicon
+
+word_sentiments <- inner_join(together_words, sentiments) #we merge the sentiment column to add a validation of the sentiment behind each word
+
+#we calculate the share of positive / negative words used by each president in all the speech
+sentiments_analysis <- word_sentiments %>% 
+  group_by(president) %>% 
+  count(president, sentiment) %>% 
+  mutate(share = round(n/sum(n),2))
+
+sentiments_analysis %>%
+  select(!n) %>% 
+  pivot_wider(
+    names_from = sentiment,
+    values_from = share
+  )
 
 ````
 
+<br>
 
+#### 📊 **STEP 4. Plot the results.** 
+
+Finally we can plot our results (from the word frequency or sentiment analysis). To do so, we can use packages such as dplyr and ggplot. 
+<br>
+
+**Task 7.** *Visualise in a plot the 6-most used positive and negative words in the two speeches*
+```{r}
+
+word_sentiments %>% 
+  group_by(sentiment) %>% 
+  count(word, sentiment, president, sort=T) %>% 
+  slice_max(n, n=6) %>% 
+  mutate(word = reorder(word, n)) %>% 
+  ggplot(aes(n, word, fill=sentiment)) +
+  geom_col(show.legend = F) + 
+  facet_wrap(~sentiment + president, scales = "free_y") +
+  scale_fill_manual(values= c("dark red", "light green")) +
+  labs(title = "Most used negative and positive words by president",
+       subtitle = "(limited to the 6-most used words)",
+       x= "Contribution to sentiment", 
+       y= "Words")
+
+```
+
+
+However, in text analysis we can also use an even cooler package that generates word clouds. This package is called *wordcloud2*, and we can use it inside the dplyr functionalities following the same structure as ggplot. It prints an interactive cloud of words which also tells us the number of times each word appears. 
+<br>
+
+**Task 8.** *Print the 50 words that Obama used the most in a wordcloud and highlight in three different colours the top-3.*
+```{r}
+
+obama_wordcloud <- together_clean %>% 
+  filter(president=="obama") %>% 
+  count(word, sort=T) %>% 
+  head(50) %>% 
+  wordcloud2(size= .4,
+            color = c("darkblue", "red", "darkgreen"))
+obama_wordcloud
+
+```
+
+
+
+#### ➕🤓 **Additional exercises and material**
+
+
+##### put this task as additional material (otherwise we wouldn't have enough time)
 
 ````{r}
 #Usage of word "I"
@@ -186,62 +314,6 @@ I_we_share %>%
 
 ````
 
-<br>
 
-#### 😍/😢 **STEP 3. Sentiment analysis.**
+#### 📚 **REFERENCES**
 
-````{r}
-#Analysis of the general sentiment of the speeches
-
-sentiments <- get_sentiments("bing") #we load the bing-sentiments lexicon
-
-word_sentiments <- inner_join(together_words, sentiments) #we merge the sentiment column to add a validation of the sentiment behind each word
-
-#we calculate the share of positive / negative words used by each president in all the speech
-sentiments_analysis <- word_sentiments %>% 
-  group_by(president) %>% 
-  count(president, sentiment) %>% 
-  mutate(share = round(n/sum(n),2))
-
-
-sentiments_analysis %>%
-  select(!n) %>% 
-  pivot_wider(
-    names_from = sentiment,
-    values_from = share
-  )
-
-
-````
-
-<br>
-
-#### 📊 **STEP 4. Plot the results.** 
-
-Let's do it cooler. We now want to plot most-used words in wordclouds. 
-
-```{r pressure, echo=FALSE}
-
-obama_wordcloud <- together_clean %>% 
-  filter(president=="obama") %>% 
-  count(word, sort=T) %>% 
-  head(50) %>% 
-  wordcloud2(size= .4,
-            color = c("darkblue", "red", "darkgreen"))
-obama_wordcloud
-
-
-```
-
-````{r}
-trump_wordcloud <- together_clean %>% 
-  filter(president=="trump") %>% 
-  count(word, sort=T) %>% 
-  head(50) %>% 
-  wordcloud2(size= .4,
-            color = c("darkblue", "red", "darkgreen"))
-trump_wordcloud
-
-````
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
